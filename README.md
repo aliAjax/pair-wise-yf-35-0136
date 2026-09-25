@@ -25,6 +25,19 @@ python3 app.py --db ./data.db --port 8301
 ## 核心对象
 
 - `athlete`：运动员；`sample`：检测样本；`case`：结果管理案件。
+- `passport_reading`：生物护照读数，即实验室在分析样本时登记的某个指标值。
+
+## 生物护照复核
+
+实验室在样本分析后登记读数（`POST /api/passport_readings`，角色`lab`），登记内容为指标名、数值和单位；采样时间取自样本的`collected_at`，因此可跨年形成序列。同一运动员同一指标按采样时间排序，同一样本重复分析不重复记账（按`sample_id`+`marker`幂等返回已有读数）。
+
+- 同一指标的前两条读数直接入账（`recorded`）；从第三条起，若偏离前两条（按采样时间最近的两条）平均值超过一成（>10%，双向），读数进入`pending_review`，否则为`recorded`。
+- 存在`pending_review`读数时：该运动员的退役（`retire`）被拒绝，且该指标暂停接收新读数（其他指标不受影响）。
+- 专家组（`panel`）可`dismiss`（解除异常，需`rationale`）或`confirm`（确认违规）；异常历史永久保留，已解除/确认的读数仍参与后续序列。
+- 确认违规后，对应样本（含已被`clear`放行的样本）自动转为`adverse`阳性，可据此创建`case`。
+- 待复核列表：`GET /api/passport_readings?status=pending_review`。
+- 同指标单位必须一致，单位冲突会被拒绝。
+- 读数也可在样本`analyze`动作中随`data.readings`数组一并登记。
 
 ## 主要接口
 
