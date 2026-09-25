@@ -2,14 +2,16 @@ from uuid import uuid4
 
 from .audit import AuditTrail
 from .domain import ConflictError, NotFoundError
+from .passport import PassportService
 from .rules import RuleEngine
 
 
 class DomainService:
-    def __init__(self, repository, rules=None):
+    def __init__(self, repository, rules=None, passport=None):
         self.repository = repository
         self.rules = rules or RuleEngine()
         self.audit = AuditTrail(repository)
+        self.passport = passport or PassportService(repository, self.audit)
 
     def _lookup(self, kind, field, value):
         return self.repository.find_entities(self.rules.normalize_kind(kind), field, value)
@@ -56,6 +58,7 @@ class DomainService:
             updated["status"],
             {"patch": patch},
         )
+        self.passport.after_transition(actor, updated, action)
         return updated
 
     def get(self, entity_id):

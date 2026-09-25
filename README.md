@@ -9,6 +9,7 @@
 - `src/rules.py`：状态机、权限、领域计算、冲突和跨对象校验。
 - `src/repository.py`：SQLite建表、查询、事务和乐观锁。
 - `src/service.py`：用例编排、幂等处理、版本控制和审计写入。
+- `src/passport.py`：生物护照读数记账、序列计算和确认后样本联动。
 - `src/http_api.py`：HTTP路由、请求解析和统一错误响应。
 - `src/audit.py`：实体操作审计时间线。
 - `static/index.html`：最小演示页面。
@@ -25,6 +26,15 @@ python3 app.py --db ./data.db --port 8301
 ## 核心对象
 
 - `athlete`：运动员；`sample`：检测样本；`case`：结果管理案件。
+- `reading`：生物护照读数，由样本分析自动登记，不能直接创建。
+
+## 生物护照复核
+
+- 样本执行`analyze`时可携带`marker`（指标）、`value`（数值）、`unit`（单位），三者必须同时提供；系统自动登记一条`reading`，并按样本的`collected_at`（或显式传入的`sampled_at`）归入该运动员该指标的时间序列。
+- 同一运动员同一指标从第三条读数起，若相对前两条读数平均值的偏离超过10%（`src/rules.py`中的`DEVIATION_THRESHOLD`），该读数进入`pending_review`。
+- 存在`pending_review`读数时：该运动员该指标暂停接收新读数，且该运动员不能`retire`；对同一样本同一指标的重复分析不会重复记账。
+- 专家组（`panel`/`admin`）对`pending_review`读数执行`release`（解除，恢复接收新读数）或`confirm`（确认违规，关联样本转为`adverse`，可据此创建`case`）；两个动作都需要`reason`。
+- 读数的`anomaly`、`deviation`、`baseline_avg`永久保留，`release`/`confirm`只改变状态；用`GET /api/reading?status=pending_review`筛选待复核读数。
 
 ## 主要接口
 
